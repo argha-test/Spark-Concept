@@ -1,0 +1,255 @@
+1. Incremental Data Load Using Watermarking
+Ans: Find out last modified time act as a watermark column.store last successful load value in a metadata table.use lookup activity to fetch 
+	data.filter new data in copy activity using dynamic query.after successful run update meta data table with new watermark column.
+	Select * from LastModifiedDate > '@{pipeline().parameters.LastWaterMark}'
+	Lookup old watermark -- Lookup new watermark -- copy activitity -- update watermark store procedure
+	
+2. Handling CSV with Variable Columns
+Ans:I use mapping dataflow with enable schema drift. If the file contains headers, I set Skip line count = 1. I also enable infer drifted column types so new columns can be detected automatically . also standardize the schema.
+
+  data flow mapping--> enable schema drift ---> skip line count = 1--> infer drifted column type-->standarize schema
+
+3. Incremental Load with Databricks Merge with DeltaLake (Merge(upsert))
+Ans: Update existing records + Insert new records in one operation
+     create a first target table first
+     MERGE INTO target t
+     USING source s
+     ON t.id = s.id
+
+     WHEN MATCHED THEN
+       UPDATE SET t.salary = s.salary
+
+     WHEN NOT MATCHED THEN
+      INSERT (id, name, salary)
+      VALUES (s.id, s.name, s.salary)
+	  
+	 I design incremental pipelines using a watermark column like created_date or updated_date, or sometimes change data capture if available. I store the last successful processed value in a metadata table, then read only new or changed records. In Delta Lake, I use MERGE INTO for insert/update logic so I don’t reload the full dataset every time. This makes the pipeline faster, cheaper, and easier to recover.
+	  
+34. incremental load data databricks(Auto loader technique with structure streaming): 
+    df = spark.readStream.format(cloudefiles).option(cloudefiles.format,parquet).option(cloudefiles.schemalocation,'').option("cloudFiles.schemaEvolutionMode", "addNewColumns") .load()
+     df.writestream.format(delta).outputmode(append).option(checkpointlocation,'').option(path,'').trigger().start()  
+	 by default in storage delta create checkpoint (rocksdb) .this checekpoint prevent duplicate date 
+	 Idempotency: if pipeline run multiple time with same data , the final outcum remain same no duplicate found
+	 
+	 “We use Databricks Auto Loader for incremental data loading. It reads only new files from the source instead of reprocessing all data.
+		We use a checkpoint location, which keeps track of already processed files.
+		So if the pipeline runs again, it will not process the same files again.
+		This makes the pipeline idempotent, meaning no duplicate data is created even if we run it multiple times.”
+	 
+4. Handling Schema Evolution in Delta Lake
+Ans: spark.databricks.delta.schema.autoMerge.enabled=true
+
+5. how do u handle late arrive data?
+Ans: Yes, I handle late arriving data using a lookback approach. For example, if the pipeline runs daily, I reprocess the last 3 days of data instead of just today. This ensures delayed files are still picked up. also maintain data did not duplicate, I use auto loader technique with icremental load.
+
+6. How do you handle 100 Table ?
+Ans: First store table related information in config file. then use look up activity to fetch list. after that use for each activity to iteraration 
+     and pass table name to the copy activity.
+	 
+7. Error Handling with ADF
+Ans: We make a custom store procedure logging and all failure activity fetch data to a custom table.
+
+8. your pipeline is slow what you will do?
+Ans: Enable partioning , Increse DIUs(Data intrigation unit), Reduce Unnecary transformation,
+
+	31. how to copy 1 tb data in ADF?
+Ans: when i move data set dynamic range of partition option.
+     set partition column name like ID
+	 lower bound and upper bound 
+	 set maximum data intregation unit like 32 - 64
+	 degree of parellel copy 32
+
+9. Dataset vs Linkservice
+Ans: Dataset means data structute means where data in located . what is the format of data csv,parquet .
+     Linkservice means eastablish a connection in source and destination
+	 
+10. Itrigation RunTime : Compute engine that move data from source to Destination
+
+11. How to Load Multiple File Dynamically ?
+Ans: Meta Data Activity : Fethch all file
+     For each Activity: Iterate file one by one and enable batch count for better performance optimization
+	 Copy acttivity: move data to destination.
+	 
+12. How to monitor pipeline Failure? 
+Ans: one technique i have use in prod that is monitor pipeline failure activitity details into a custom sql table using store procedure. By passing
+     dynamic value like pipe line detals,error msg, time etc. so that easy to debug.
+
+13. Event based trigger: 
+    Tumbling window trigger: Proceed file in a fixed time window with no overlap also supports Backfill.
+	Event based Trigger:  whene ever file drop in a source containerin in a blob file will immedietly/ as soon as processed using Blob Event Trigger
+	     We used Event-Based Trigger in ADF to automatically start the pipeline whenever a new file arrived in ADLS
+
+14. Notification when get pipeline failed: basically i am using logic app intregrate with ADF . also get connected with email. will get notify when 
+                                          pipe line failed. Azure monitor alert.
+                                           
+										   
+15. Explain Slowly Changing Dimensions (SCD Type 2). How would you implement it in Spark?
+Ans: it is a technique Slowly changes dimension(Descriptive) data over the time . so basical insert new data as well as do not overwrite the old data.
+     adding new housekeeping columnn like Surrogate key,Current status and end date.
+	 so old record treat as historical data, and new data treat as active data
+	 
+	 1. Filter current updated Record from target dataset
+	 2.Join Source(New incomming data) with Target(Existing data) 
+	 3.Detecet changes record which id are already exist.
+	 4.Expire old records
+	 5.insert new record
+
+16. Create new dimension table with star schema: Generate surrogate key using monotonically_increasing_id.so the unique ness of dimension table.
+
+17. JSON file parse using pyspark: exploid function.
+
+18. How would you design a cost-efficient pipeline in Azure using adf, databricks, and adls?
+Ans: Adf: orchestration adls: storage Databricks: Data Processing 
+     Incremental load for reduce data movment time, store data with delta format using proper partioning,using job claster with auto termination
+	 to reduce compute cost. optimization technique like boroadcasting joining to avoid unnecesary partitiong . implement medeallion architecture.
+	 use delta feature to use MERGE,VACCUME,OPTIMIZE Technique
+	 
+19. Wide transformation vs Narrow transformation: 
+Ans: wide transformation redistribute data accross all network ,high computational cost. Group by,reduce by, join, distinct
+     Narrow transformation avoid shuffling .execute operation only single partition. Map,Filter.Select,withcolumn
+	 Transfirmation in spark are lazy operation that create a new dataset from an existing one
+	 
+20. How would you handle schema evolution in a data lake (e.g., a new column gets added in incoming JSON files)?
+Ans: df.write.format('delta').option('mergeschema','true').mode('append').path('/')
+
+21. How do you optimize Spark jobs to run faster when dealing with terabytes of data?
+And optimization with terabytes data . first i focus on find out good no of partition. ideally we use for 1 tb = 1000 partition 
+    then focus on performence like broadcast join, unnecesary shuffle , handel skew data, during data save using delta format and partitionBy date.
+	
+22. Meadallion Architechcure: 
+Ans: Bronze : store the raw format of data, ingestion layer, Siver: processing layer, data clean validate and transformation Gold: aggregation, 
+     business ready data. why imp? because if there is any issue in any layer make debuge easy and reprocessing much easier.
+	 
+23. batch process adf: linkservice dataset pipeline (copy activity)
+    Stream process adf: adf is not real time process .so we can configure event hub, next i am using databricks for read data .
+	                    code: spark.readStream.format("eventhubs"). then trigger databricks using ADF, and monitor data using ADF
+						
+24. Heavy SHuffle during spark join: first i will go spark ui section and go to stage tab. check shuffle read and shuffle write data size. if its   , 
+    very high then it is heavy data movment accross all executer also check task duration. few task take longer time . 
+	Resolution : big data.join(broadcast(small data),'id')
+	
+25. handel partial failure: Enable fault tolarance in copy activity ,also enable skip incompitable row.process entire data and skip the bad files.
+                          Solution: Watermarking Technique,
+						  
+26. What is partitioning in Databricks and how does it improve performance?
+    Ans: partioning divided data into small small chunk based on file size . 
+	its improve reduce shuffle cost, optimize storage performance , parralal processing more partition = better parallisem 
+	
+27. How does Delta Lake ensure ACID transactions?
+Ans delta lake maintain a transactions log that is _delta_log in a data storage layer. every operatio like delete , insert , update is recorded here
+    if sometime fails transactions not commited . its remain unchanged. prevent data corruption. esure the acid property.
+40. Delta Lake: it is a storage layer that is build on top of apache park.
+	schema Enforcement: maintain data quality
+	Time Traveling: query previous version of data
+	data versioning: create new data of the table 
+	
+29. Key feature of delta lake:
+    ACID Transaction: maintain data consistency
+	Time travel: Data versioning . handel previous version of data for debuging
+	Optimization: using Z order . merge small files
+	Support update,delete,merge  
+	Meta data handel using _delta_log.
+	
+28. Data bricks Cluster: all purpose cluster(dev,testing,manual start stop ),job cluster(production, auto terminate ), single node cluster(testing)
+
+
+	
+30. df.write.format(delta).mode(overwrite/append).save() 
+    df.write.format(delta).mode(overwrite/append).option('mergeschema','true').save() # Overwrite with Schema Change
+	df = spark.read.format("delta").load("/mnt/delta/sales")
+
+	 
+32. how to process 1 tb data efficienly in databricks?
+Ans:. spark.config("spark.sql.shuffle.partitions", 4000)
+      spark.config.set("spark.sql.adaptive.enable","True") {AQE} : optimization technique reduce shuffle partition .optimize spark quary at runtime	  
+      df = spark.read.parquet(input_path)
+	  df = df.withcolumn(add housekeeping column like sourcefile, reportdatetime)
+	  df_transformed.write.format("delta").mode("overwrite").partitionBy("date").option("overwriteSchema", "true").save(output_path)
+	  for this we need 10 executer and 8 core per executer total 80. 
+	  1 partition has 256 mb so 4000 partition total
+	  so at a time 4000/80 = 1 core handle 50 task parallaly. (ideal 50-100 task parallely)
+	  
+33. unity catalog: centralize access control with RBAC support
+                   component: meta store (centralize meta data repository),catalog(top level hirachary),schema(database name),table(),exernal location(storage manage)
+				   Manage data securely, fined grained access control
+				   
+	In a shared Databricks workspace, I manage governance using Unity Catalog with role-based access control. Permissions are granted at catalog, schema, table, and sometimes column level based on least privilege. We also implemented secure access using Service Principal and Azure Key Vault.also like client id , tenent id, client secret 
+	in azure keyvolt .
+				   
+	 
+35. What is Delta Lake's Time Travel feature?
+Ans: when u run update, delet command , at this point table will be updated but delta transaction log maintain the previous version of data as well 
+     as new version . some time i will delete accidentally recover,backfill historical data previous data using time travel .
+	 i am writting some query but forget to use where condition so whole data willbe remove.
+
+36. Fix Small Files After Data Is Already Written?
+Ans:  use optimization technique. compact small file into bigger size (applicable when it is delta table). fast filtering , reduce scan.
+  OPTIMIZE table_name ZORDER BY (customer_id)	 
+  
+37.Fix Small Files After Data Is Already Written?
+Ans:  use optimization technique. compact small file into bigger size (applicable when it is delta table). fast filtering , reduce scan.
+  OPTIMIZE table_name ZORDER BY (customer_id);
+  basically use foe z order , query performance by same category data
+  Processing too many files job become slow, Meta data overhead: before reading all data spark must read meta data info from all files.cloude storage API become slow.
+  
+38.We have a Spark job processing ~300GB daily. Recently runtime increased from 40 minutes to 3 hours without code changes. How would you investigate?
+Ans:  First I would verify whether the input data size increased. df.count() is increase or not.
+  I would open the Spark UI and check Task duration . if one task take very longer that means data skew.
+  also check if shuffle read partition , if earlier it was 50 gb now it is 400 gb. that means bad partition.
+  
+39. How do you recover failed pipelines?
+Ans:   in case of pipeline failure, first we check the azure monitor tab section in azure data factory also check log data find out the problem like cluster failure or data related issue. then rerun the failed activity instead of run again whole pipe line. also maintain data did not duplicate .
+
+For streaming I use checkpointing, and for batch I use Delta transactions plus MERGE logic. If a pipeline fails midway, I restart from the last successful state instead of reprocessing everything
+
+
+	
+41. Your aggregation job works fine on 50GB but crashes at 1TB with out-of-memory.What design changes would you consider instead of just increasing memory?
+   Instead of simply increasing memory, i would redesign the job to better scalable. I would increase partitioning to distribute data across to the executer.
+   
+42. Spill occurs when Spark doesn’t have enough memory and writes intermediate data to disk, which slows down processing. GC is the JVM’s garbage    collection process that frees unused memory, but excessive GC causes pauses and impacts performance. Both indicate memory pressure in Spark jobs.
+
+43. parameters are for external input and remain fixed, while variables are for internal logic and can be updated during execution.
+    when i will use condition logic, loop, counter etc .
+
+I create pipeline parameters for dynamic values like file path, file name, table name, or load date. Then I create dataset parameters and pass pipeline values into the dataset using dynamic content. This helps me build reusable, scalable, and maintainable pipelines without hardcoding
+
+Integration Runtime (IR) in ADF is the compute infrastructure used to move and transform data. It executes activities like Copy, Data Flow, and handles connectivity between source and destination.”
+
+44. What chalenges did you face in your last project?
+Ans:i face sometime schema changes from source provider like i receiced 7 coulumn in source provider in last day and today i receiced files with 9 
+     column . 2 extra column i receiced. so we handle using autoloader with schema evolution technique. also use mergeschema = True while writing 
+     to delta.	 
+
+45. Explain partition: partition used for distribute large amount of data into small small chunk into the all worker node. it is used for parellel
+    processing and optimize performance , reduce execution time.
+	
+	repartition: it is used for perform full shuffle and increase or decrease partition before large join or whenever data is skewed. basically I want more parallisem
+	Colease: it used to decrease paartition before writting the final output . first check getnumberPartition . then use colease . to reduce many small file problem 
+	how do handel reduce shuffling? example?
+	
+46. UDF: i have implement some custom logic in a function. and register it using udf pyspark function then transform dataframe in custom function 
+
+47. what is the ideal number of cores executer in spark and why ? what happens if we allocate too many or too few cores?
+Ans: ideal number of core per executer is 3-5 . our main goal is balance between parallisem and resource(Memory) utilization/management.
+     one executor has too many core, many task run in one JVM, it caused GC issue and memory pressure
+	 one executor has few core has also be a problem like memory overhead and reduce cluster efficiency.
+	 
+/employee
+    ├── part-0001.parquet
+    ├── part-0002.parquet
+    ├── _delta_log/
+           ├── 00000000000000000000.json
+           ├── 00000000000000000001.json
+           ├── 00000000000000000010.checkpoint.parquet
+		   
+
+Clusterd Index: A clustered index physically sorts and stores table data based on the indexed column.data sort in alphabetical order.
+
+Non-Clustered Index : A separeted lookup structure created that reffers to a actual table.
+
+row_number: asign unique values in a sequential order.
+Rank: asign unique value in a row but if there is duplicate row its skip the next number.
+Dense_Rank: asign unique value in a row but if there is duplicate row its did not skip the next number.
+
+ 
