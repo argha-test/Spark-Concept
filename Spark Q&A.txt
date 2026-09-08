@@ -1,0 +1,48 @@
+1.When driver fails in PySpark, what will happen?
+Ans: Driver is a brain of spark application, drive create SparkSession , schedule job, collect result , if it is faild all spark applicationshut down,
+     cluster manager restart the application.
+	 
+2. How to define executor memory?
+Ans . executor memory means . how much memory allocate in a executor.
+      df = SparkSession.builder.appName('executor').config('spark.executor.memory',"4").getOrCreate()
+	  
+3. What happens when we submit a Spark job?
+Ans: spark submit job --- Driver started --- DAG Created -- action trigger execution --- DAG scheduler create Stage -- Task scheduler create Task
+     --- executor run task on partition --- result return
+	 
+4. What is predicate pushdown?
+Ans: It is a spark optimization techniqe where filter condition is applyed on top of when loading the data. so pushdown to the storage layer instead of scanning everything .  spark reads only matching column instead scanning everything
+     df = spark.read.parquet("/data/sales").filter("country = 'India'")
+
+5. What is partitioning Pruning?
+Ans: It is a spark optimization techniqe where filter condition is applyed on top of when loading the data. spark read only matching partition instead of scanning everything.
+   /data/sales/year=2025/month=03/
+   /data/sales/year=2025/month=04/
+   /data/sales/year=2026/month=01/
+   df = spark.read.parquet("/data/sales").filter("year = 2026")
+
+6. Bucketing
+   it means distributing data in fixed number of bucket using hash function .
+   df.write.format('parquet').bucketby(8,customer id).sort(customer id).mode(overwrite).save()
+   It is mainly used to improve join and aggregation performance by reducing data shuffling.
+
+7.RDD : it is a Fault tolarence immutable distributed collection of data that can process parellaly 
+  DataFrame: Distributed collectof data organize into row and column
+  
+8.what is the ideal number of cores executer in spark and why ? what happens if we allocate too many or too few cores?
+Ans: ideal number of core per executer is 3-5 . our main goal is balance between parallisem and resource(Memory) utilization.
+     one executor has too many core, many task run in one JVM, it caused GC issue and memory pressure
+	 one executor has few core has also be a problem like memory overhead and reduce cluster efficiency.
+	 
+10.AQE: Adaptive Query Execution (AQE) is a Spark optimization feature that dynamically changes the execution plan at runtime.
+    spark.conf.set("spark.sql.adaptive.enabled", "true")
+   1. Dynamic Shuffle Partition Coalescing: AQE automatically merges small partitions.
+   2. Dynamic Join Strategy Switching : One table is actually small enough for broadcast. Sort Merge Join → Broadcast Hash Join.
+   3. Skew Join Optimization : AQE detects skewed partitions and splits them into smaller tasks.
+   
+ 
+11. Transformations are lazy operations that create a new DataFrame/RDD without immediate execution, such as filter(), select(), and join(). Actions trigger execution and return results, such as show(), count(), and collect(). Spark uses lazy evaluation to optimize performance through DAG optimization.
+
+12. partitioning impact performance : partitioning impact spark performance . Too few partition reduce parallelism and under utilize memory and too many partition also be a issue , memory overhead(Scheduling overhead). so always do proper partitioning and distributed data parellalely.
+
+13. 
