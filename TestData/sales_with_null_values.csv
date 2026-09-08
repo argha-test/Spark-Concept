@@ -1,0 +1,21 @@
+order_id,product,quantity,price,discount
+1,Laptop,2,50000,0.10
+2,Mouse,,800,0.05
+3,Keyboard,1,,0.00
+4,Monitor,3,12000,
+5,Headset,,,
+6,Webcam,5,2500,0.15
+7,Printer,2,15000,
+8,Speaker,,3000,0.20
+9,Tablet,4,,0.05
+10,SSD,1,6500,
+11,RAM,2,3200,0.10
+12,Power Bank,,1200,
+13,Router,3,,0.15
+14,Smart Watch,1,8500,0.05
+15,Camera,,,0.10
+16,Hard Disk,2,4500,
+17,Microphone,,2500,0.20
+18,Projector,1,35000,
+19,USB Cable,10,300,
+20,Graphics Card,,45000,0.05

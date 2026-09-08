@@ -1,0 +1,11 @@
+customer_id,name,city,salary,updated_date
+101,John,Mumbai,50000,2026-07-20
+102,Alice,Delhi,60000,2026-07-21
+103,Bob,Kolkata,45000,2026-07-22
+104,David,Chennai,70000,2026-07-23
+105,Eva,Pune,55000,2026-07-24
+106,Frank,Hyderabad,65000,2026-07-25
+107,Grace,Bangalore,72000,2026-07-26
+108,Henry,Jaipur,48000,2026-07-27
+109,Irene,Lucknow,53000,2026-07-28
+110,Jack,Patna,61000,2026-07-29
