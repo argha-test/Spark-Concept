@@ -1,0 +1,52 @@
+Project: whole pipeline .
+
+In my Recent Project,I implemented an end to end azure data pipeline to drop file in azure sftp and its automatically move to azure data lake storage as
+a flat file system in a specific container. in our business model , we created 2 container one is filedrop container another one is etl container.
+After the raw file landed in the filedrop container, We used to Azure Data Factory to move the file into a structure directory path inside same filedrop container. We designed a hierarchical folder structure like /DataProvider/FileType/YYYY-MM-DD/ to logically partition data by processing date.Additionally,we dynamically appended the current system timestamp in yyyyMMddHHmmss format to the file name to ensure uniqueness and avoid overwriting if duplicate files were dropped.
+
+The implementation was done by copy activity of ADF. First we used get meta data activity to fetch all child item in the container. Then we applied filtering logic to ensure get only specific file pattern .After that we used foreach activity to control the iteration , inside for loop activity we used get mata data activity to find out last modified date and finally trigger the copy activity to movement the raw data.This is the all bronze level setup.
+
+once the file was organized in the bronze layer , we procced the transformation part which is executing through the databricks wih pyspark.As part of initial setup , we create a service principle (Microsoft entra ID) and generate Client Id, Tenant ID, Client Secret. we store all credential inside the keyvault so all secrets are encrypted also We assigned RBAC roles to the Service Principal on the Storage Account, Now authenticate to the storage account ,once authentication is done after that read the csv file . after that we add the housekeeping column that is SourceFile,ReportDateTime column. SourceFile Path should be the generic one whatever etl container file path,as it is same in sourceFile . our etl containaier should be /DataProvider/FileType/YYYY-MM-DD/FileName_{curerent Date Time}.csv . and ReportDateTime Should be the current DateTime.
+
+Once Silver layer is completed we ingested the data into Azure Data Explore that is KQL.
+
+In my recent project, I built an end-to-end Azure data pipeline where client files were dropped into Azure SFTP in flat file system and ingested into ADLS using Azure Data Factory. We organized data in a Bronze layer using a date-based folder structure also ensure  date should be last modified date of file and dynamic file naming like append with current dateTime to ensure uniqueness and avoid duplicates. Then, using Databricks with PySpark, we transformed the data into a Silver layer by adding housekeeping columns like SourceFile and ReportDateTime. Finally, the processed data was ingested into Azure Data Explorer for reporting. We also implemented secure access using Service Principal and Azure Key Vault.”
+
+
+
+
+
+
+
+
+
+
+
+
+
+Top 2–3 Challenges Faced
+1. Handling Duplicate Files and File Uniqueness
+Challenge
+
+Sometimes clients uploaded files with the same name multiple times, which could overwrite existing files or create duplicate processing issues.
+
+Solution
+Implemented dynamic file naming using current timestamp/dateTime
+Used metadata validation before processing
+Maintained audit/control tables for processed files
+Result
+
+This ensured file uniqueness and prevented duplicate ingestion.
+
+2. Managing Dynamic Folder Structure Based on Last Modified Date
+Challenge
+
+3.Handling Large Data Volumes
+Challenge: Spark jobs were slow due to skewed data and improper partitioning.
+Solution:
+Converted CSV to Parquet/Delta format
+Used repartitioning based on business keys
+
+4.Schema Evaluation: 
+
+
