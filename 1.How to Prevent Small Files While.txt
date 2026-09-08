@@ -1,0 +1,258 @@
+1.How to Prevent Small Files While Writing?
+  use repartition in start of the code or colease function whenever save the output
+2.Fix Small Files After Data Is Already Written?
+  use optimization technique. compact small file into bigger size (applicable when it is delta table). fast filtering , reduce scan.
+  OPTIMIZE table_name ZORDER BY (customer_id);
+  basically use foe z order , query performance by same category data
+3.Files are landing continuously from source team, they changes schema or added new column without prior notice how to handle it ?
+  I would use Autoloader with schemaevalutionmode set to rescue so that unexpected coloumn dont break the pipeline . and i would write merge schema to 
+  handle bronze layer.
+4. window function lag function
+6.dashboard query/parameterize query
+7.df = df.groupby('booking date').agg(round(sum('ammount'),2).alise('total_amount')).sort('booking date')
+8.identify the top 5 airport based on total flight ticket sale for the last few months . how would you calculate the top 5 airport by total sale revenue?
+9.We have a Spark job processing ~300GB daily. Recently runtime increased from 40 minutes to 3 hours without code changes. How would you investigate?
+  First I would verify whether the input data size increased. df.count() is increase or not.
+  I would open the Spark UI and check Task duration . if one task take very longer that means data skew.
+  also check if shuffle read partition , if earlier it was 50 gb now it is 400 gb. that means bad partition.
+10.A join stage shows 200 tasks, but only 5 run at a time while the cluster is idle. What could cause this behavior?
+   First, I would open the Spark UI first and go to Executer tab to verify the number of executer and core. so after u will get total no of parallel task.
+   i think it is 5 .
+11.Your aggregation job works fine on 50GB but crashes at 1TB with out-of-memory.What design changes would you consider instead of just increasing memory?
+   Instead of simply increasing memory, i would redesign the job to better scalable. I would increase partitioning to distribute data across to the executer.
+   df.repartition(2000) or shuffle partition, by default it is 200, I would increase to 2000. use batch aggregation that means instead of processing 1 tb 
+   directly , you can break small small chunk and process it . using group by function or reduceby key. also check data is skewed or not. if skewed then 
+   us salting technique.
+12.You’re writing data to S3 partitioned by date, but downstream jobs are slow because of thousands of small files.How would you fix this without 
+   breaking ingestion latency?
+   If this is not a delta table, Read the small file rewrite them as a larger file.
+   df = spark.read.parquet('s3/bucket/table/date')
+   df.coalesce(10).write.mode('overwrite').partitionby(Date).parquet("s3://bucket/table/")  
+13. How would u design a incremental load in ADF pipeline?
+    Find out last modified time act as a watermark column.store last successful load value in a metadata table.use lookup activity to fetch data.filter new data in copy activity using dynamic query.after successful run update meta data table with new watermark column.
+14.Idempotency: if pipeline run multiple time with same data , the final outcum remain same no duplicate found
+   MERGE INTO sales_target t USING sales_source s ON t.order_id = s.order_id WHEN MATCHED THEN UPDATE SET * WHEN NOT MATCHED INSERT *
+15. Auto Optimize in spark: spark.conf.set("spark.databricks.delta.autoCompact.enabled", "true")
+16. Spark UI--> Stages---> Task Duration
+17. how do u handle late arrive data?
+   Lets assume, my pipeline is set as a schedule window trigger in a specefic time like 1.00 pm everyday. but today we will received data as 3.00 pm in source container. so in this case my trigger is failed. we will manually run the pipeline and move data in a destination container. this is backfill process
+18: Delta Lake: it is a storage layer that is build on top of apache park.
+	schema Enforcement: maintain data quality
+	Time Traveling: query previous version of data
+	data versioning: create new data of the table
+19.How do you recover failed pipelines?
+   in case of pipeline failure, first we check the azure monitor tab section in azure data factory also check log data find out the problem like cluster failure or data related issue. then rerun the failed activity instead of run again whole pipe line. also maintain data did not duplicate .
+
+
+
+
+
+✔ Design ingestion pipeline using ADF (Batch + Streaming)
+✔ Incremental loading using watermark / CDC
+✔ Optimize Spark job with skew / memory issues
+✔ Small file problem in Data Lake
+✔ SQL window functions (2nd highest salary etc.)
+✔ Modern Azure Data Warehouse architecture
+✔ Handling heavy shuffle in Spark
+✔ End-to-end data flow (ADF → ADLS → Databricks → Synapse → Power BI)
+✔ ETL failure recovery without full reload
+✔ CDC using SQL Server + Event Hub / Kafka
+✔ Pipeline runtime increase RCA
+✔ Performance / cost optimization
+✔ Handling business conflicts
+✔ Delivering under tight deadlines
+✔ Data quality, monitoring, observability
+
+
+
+Extra
+
+Handle conflict with business team
+Delivery under tight deadlines
+how do u ensure production grade quality
+
+Manegerial
+
+Tell me about a challenging data engineering project you worked on.
+2️⃣ How do you handle tight deadlines and multiple deliverables?
+3️⃣ Have you ever faced a production failure? How did you fix it?
+4️⃣ How do you collaborate with data analysts and business teams?
+5️⃣ What would you do if your pipeline fails just before a client demo?
+6️⃣ Why do you want to join PwC?
+
+
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, sum as _sum, when, current_timestamp
+
+spark = SparkSession.builder.appName("Sales_Transformation").getOrCreate()
+
+# 1. Read data from ADLS (Delta/Parquet/CSV)
+df = spark.read.format("csv") \
+    .option("header", "true") \ 
+	.option("inferschema","true")\
+    .load("/mnt/adls/raw/sales_data.csv")
+
+# 2. Data Cleaning & Transformation
+df_clean = df.withColumn("sales_amount", col("sales_amount").cast("double")) \
+    .withColumn("region", when(col("region").isNull(), "Unknown").otherwise(col("region"))) \
+    .withColumn("ingestion_time", current_timestamp())
+
+# 3. Aggregation
+df_agg = df_clean.groupBy("region") \
+    .agg(_sum("sales_amount").alias("total_sales"))
+
+# 4. Write to Delta Table
+df_agg.write.format("delta") \
+    .mode("overwrite") \ 
+	.partition by ("Date")
+    .save("/mnt/adls/processed/sales_delta")
+
+# Optional: Register as table
+spark.sql("""
+    CREATE TABLE IF NOT EXISTS sales_summary
+    USING DELTA
+    LOCATION '/mnt/adls/processed/sales_delta'
+""")
+
+
+1. Core PySpark Concepts
+
+What are the differences between RDD, DataFrame, and Dataset in PySpark?
+
+How is lazy evaluation implemented in PySpark?
+
+Explain the lineage of a DataFrame and how Spark handles fault tolerance.
+
+What is the role of Catalyst Optimizer in PySpark?
+
+
+
+---
+
+2. DataFrame Operations
+
+How do you read CSV, JSON, and Parquet files in PySpark?
+
+How would you perform groupBy and aggregate operations in PySpark?
+
+Explain how to join multiple DataFrames. What are different types of joins?
+
+What is the difference between select() and selectExpr()?
+
+
+
+---
+
+3. Performance Tuning
+
+How do you optimize PySpark jobs?
+
+What is persist() vs cache()?
+
+How do you handle skewed data in Spark?
+
+What are broadcast joins? When and how do you use them?
+
+
+
+---
+
+4. Spark SQL
+
+How do you register a DataFrame as a temporary view?
+
+Can you run SQL queries directly in PySpark? How?
+
+Explain window functions with an example.
+
+
+
+---
+
+5. Real-world Scenarios
+
+Given a log file, how would you extract the top 10 most frequent IPs?
+
+How do you handle missing/null values in PySpark?
+
+How to detect and remove duplicates from a DataFrame?
+
+
+
+---
+
+6. Deployment and Environment
+
+What’s the difference between local mode and cluster mode in Spark?
+
+How do you submit a PySpark job to a cluster?
+
+How do you monitor and debug Spark applications?
+
+
+
+---
+
+7. File Formats and Partitions
+
+What are the advantages of Parquet over CSV or JSON?
+
+How do you repartition or coalesce data? When would you use each?
+
+
+
+---
+
+8. UDFs (User Defined Functions)
+
+How do you write and use a UDF in PySpark?
+
+What are the performance considerations when using UDFs?
+
+
+
+---
+
+9. Integration & Workflow
+
+How have you integrated PySpark with Hadoop/HDFS, Hive, or Kafka?
+
+Describe an end-to-end pipeline you built using PySpark.
+
+
+
+---
+
+10. Miscellaneous
+
+Difference between narrow and wide transformations?
+
+How is schema evolution handled in PySpark?
+
+How do you handle schema-on-read vs schema-on-write?
+
+
+In my last project, I have used meta data activity to fetch last modified timestam using child item. and append timestam to the source file name.
+
+top 2 employee by salary in each depertment
+
+with rank_salary as (select name , dept, salary , Dense_rank() over(partition by dept order by salary desc)as rnk from employees )
+select * from rank_salary where rnk<= 2
+
+ from pyspark.sql.functions import col, dense_rank
+ from pyspark.sql.window import window
+ window_spec =  window.partitionby(col(dept)).orderby(col(salary).desc()) 
+ salary_rnk = df.withColumn("rnk", dense_rank().over(window_spec))
+ salary_filter = salary_rnk.filter(col(rnk)<=2)
+ salary_filter.display()
+ 
+ 
+ I learned a lot in my current company, especially ADF and Databricks. But most of my work is similar type of project, so I want to explore more and work on different and challenging things. Also, I’m looking for a better opportunity
+ 
+ “Hi, I’m Argha. I have around 3 years of experience as a Data Engineer. I mainly work with Azure Data Factory, ADLS, and Databricks using PySpark.
+  .In my current role,I build data pipelines—like ingesting data from source systems into ADLS using ADF, and then transforming it in Databricks.I have done b.tech heritage instititue of technology from kolkata
+now i am  looking for new opportunity also enhace my current skill set.
+
+Yes, I use Copilot. It has increase my productivity, also improve my time management skill. mainly to speed up debugging and explore different approaches.
+It helps me solve issues faster compared to usual methods.
+But I always test the code myself and make sure I fully understand the logic before using it.
